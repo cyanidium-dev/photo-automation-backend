@@ -38,24 +38,35 @@ export class EmailService {
     clientName: string,
     galleryLink: string,
   ) {
-    const subject = 'Ваші фотографії готові!';
+    const subject = 'Vos photos sont prêtes !';
     const html = `
-      <h1>Вітаємо, ${clientName}!</h1>
-      <p>Ваша фотосесія завершена. Ви можете переглянути та завантажити ваші фото за посиланням нижче:</p>
-      <a href="${galleryLink}">${galleryLink}</a>
-      <p>Дякуємо, що обрали нас!</p>
+      <p>Bonjour,</p>
+      <p>Vous trouverez ci-dessous le lien vers votre galerie en ligne contenant les photos de votre séance.</p>
+      <p><a href="${galleryLink}">${galleryLink}</a></p>
+      <p>Merci de sélectionner les photos à retoucher en fonction de votre formule.</p>
+      <p>Une fois la sélection terminée, veuillez cliquer sur le bouton noir pour valider. Suite à cela, nous recevons une notification pour commencer à traiter vos photos.</p>
+      <p>Nous vous informons que vous bénéficiez de 3 photos retouchées supplémentaires en cas où vous autorisez la publication de vos photos.</p>
+      <p>Si vous avez la moindre question, nous serons ravis de vous aider.</p>
+      <p>Nous vous souhaitons une belle découverte de vos photos 💛</p>
+      <p>Cordialement,</p>
+      <p><strong>Studio photo Yuliia S</strong></p>
     `;
     return this.sendMail(to, subject, html);
   }
 
   async sendReviewRequestMail(to: string, clientName: string) {
-    const subject = 'Ваші відретушовані фото готові!';
+    const subject = 'Vos photos retouchées sont prêtes !';
     const reviewLink = 'https://g.page/r/CUD0UlxBaIr_EAE/review';
     const html = `
-      <h1>Вітаємо, ${clientName}!</h1>
-      <p>Ваші фотографії вже відретушовані!</p>
-      <p>Будемо дуже вдячні за ваш відгук на Google Maps:</p>
-      <a href="${reviewLink}">${reviewLink}</a>
+      <p>Bonjour,</p>
+      <p>Nous sommes ravis de vous informer que vos photos ont été retouchées.</p>
+      <p>Pensez à les télécharger en « Original size » afin de garder la qualité.</p>
+      <p>Elles seront disponibles via le même lien dans la rubrique « photos retouchées » pendant 1 an. Passé ce délai, les photos seront automatiquement supprimées.</p>
+      <p>Si vous avez apprécié cette expérience, n’hésitez pas à nous laisser un commentaire via ce lien:</p>
+      <p><a href="${reviewLink}">${reviewLink}</a></p>
+      <p>Nous avons par ailleurs le plaisir de vous offrir une remise de -10% sur votre prochaine séance photo!</p>
+      <p>Merci pour votre confiance,</p>
+      <p><strong>Studio photo Yuliia S</strong></p>
     `;
     return this.sendMail(to, subject, html);
   }
