@@ -117,7 +117,7 @@ export class GoogleSheetsService implements OnModuleInit {
       Залишок: booking.balance,
       'Дата фотосесії': booking.date,
       'Година фотосесії': booking.time,
-      'Відретушовані фото': booking.retouched ? 'TRUE' : 'FALSE',
+      'Відретушовані фото': !!booking.retouched,
       'Тип фотосесії': booking.type,
       Тариф: booking.tariff,
       Завдаток: booking.deposit,
