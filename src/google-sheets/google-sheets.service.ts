@@ -8,6 +8,7 @@ import {
 import { JWT } from 'google-auth-library';
 import { GOOGLE_SHEET_COLUMNS } from '../common/constants.js';
 import { BookingData } from '../common/interfaces.js';
+import axios from 'axios';
 
 interface IConfig {
   get(key: string): unknown;
@@ -91,7 +92,7 @@ export class GoogleSheetsService implements OnModuleInit {
     } else {
       await sheet.addRow(rowData);
     }
-
+    await this.triggerAutoSort(sheet.title);
     await this.sortSheet(sheet);
   }
 
@@ -155,5 +156,16 @@ export class GoogleSheetsService implements OnModuleInit {
     });
 
     console.log(`Sorted ${sorted.length} rows in sheet: ${sheet.title}`);
+  }
+
+  async triggerAutoSort(sheetName: string) {
+    const url = this.configService.get('GOOGLE_SCRIPT_SORT_URL');
+    try {
+      // Передаємо назву аркуша в тілі запиту
+      await axios.post(url, { sheetName: sheetName });
+      console.log(`✅ Запит на сортування аркуша "${sheetName}" відправлено`);
+    } catch (error) {
+      console.error('❌ Помилка тригера:', error.message);
+    }
   }
 }
