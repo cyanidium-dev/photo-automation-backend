@@ -93,7 +93,6 @@ export class GoogleSheetsService implements OnModuleInit {
       await sheet.addRow(rowData);
     }
     await this.triggerAutoSort(sheet.title);
-    await this.sortSheet(sheet);
   }
 
   async deleteBooking(booking: Partial<BookingData>) {
@@ -139,33 +138,16 @@ export class GoogleSheetsService implements OnModuleInit {
     };
   }
 
-  private async sortSheet(sheet: GoogleSpreadsheetWorksheet) {
-    const rows = await sheet.getRows();
-    if (rows.length <= 1) return;
-
-    // Sort rows locally (Note: this doesn't actually reorder them in the sheet yet)
-    // To reorder, we would need to delete and re-add or use batchUpdate
-    const sorted = [...rows].sort((a, b) => {
-      const dateTimeA = new Date(
-        `${String(a.get('Дата фотосесії'))} ${String(a.get('Година фотосесії'))}`,
-      );
-      const dateTimeB = new Date(
-        `${String(b.get('Дата фотосесії'))} ${String(b.get('Година фотосесії'))}`,
-      );
-      return dateTimeA.getTime() - dateTimeB.getTime();
-    });
-
-    console.log(`Sorted ${sorted.length} rows in sheet: ${sheet.title}`);
-  }
-
   async triggerAutoSort(sheetName: string) {
-    const url = this.configService.get('GOOGLE_SCRIPT_SORT_URL');
+    const url = this.configService.get('GOOGLE_SCRIPT_SORT_URL') as string;
     try {
-      // Передаємо назву аркуша в тілі запиту
       await axios.post(url, { sheetName: sheetName });
       console.log(`✅ Запит на сортування аркуша "${sheetName}" відправлено`);
     } catch (error) {
-      console.error('❌ Помилка тригера:', error.message);
+      console.error(
+        '❌ Помилка тригера:',
+        error instanceof Error ? error.message : error,
+      );
     }
   }
 }
