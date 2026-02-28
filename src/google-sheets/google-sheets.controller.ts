@@ -1,5 +1,14 @@
-import { Controller, Post, Body, HttpCode } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  Headers,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../email/email.service.js';
+import { GoogleSheetsService } from './google-sheets.service.js';
 
 export class SheetsUpdatePayload {
   clientName?: string;
@@ -11,11 +20,24 @@ export class SheetsUpdatePayload {
 
 @Controller('webhooks/sheets')
 export class GoogleSheetsController {
-  constructor(private emailService: EmailService) {}
+  constructor(
+    private emailService: EmailService,
+    private configService: ConfigService,
+    private googleSheetsService: GoogleSheetsService,
+  ) {}
 
   @Post('update')
   @HttpCode(200)
-  async handleSheetUpdate(@Body() payload: SheetsUpdatePayload) {
+  async handleSheetUpdate(
+    @Body() payload: SheetsUpdatePayload,
+    @Headers('x-api-key') apiKey: string,
+  ) {
+    const validKey = this.configService.get<string>('GOOGLE_SCRIPT_API_KEY');
+    if (apiKey !== validKey) {
+      console.warn(`Unauthorized webhook attempt with key: ${apiKey}`);
+      throw new UnauthorizedException('Invalid API Key');
+    }
+
     console.log('Received Sheets update webhook:', payload);
 
     // Expecting payload: { clientName, email, galleryLink, retouched, type }
@@ -41,5 +63,13 @@ export class GoogleSheetsController {
     }
 
     return { status: 'no_action' };
+  }
+
+  @Post('trigger-sort')
+  @HttpCode(200)
+  async triggerSort(@Body() body: { sheetName?: string }) {
+    const sheetName = body.sheetName || 'Sheet1';
+    await this.googleSheetsService.triggerAutoSort(sheetName);
+    return { status: 'sort_triggered', sheetName };
   }
 }

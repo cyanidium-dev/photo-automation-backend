@@ -8,7 +8,8 @@ import {
 import { JWT } from 'google-auth-library';
 import { GOOGLE_SHEET_COLUMNS } from '../common/constants.js';
 import { BookingData } from '../common/interfaces.js';
-import axios from 'axios';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 
 interface IConfig {
   get(key: string): unknown;
@@ -18,7 +19,10 @@ interface IConfig {
 export class GoogleSheetsService implements OnModuleInit {
   private doc!: GoogleSpreadsheet;
 
-  constructor(private configService: ConfigService) {}
+  constructor(
+    private configService: ConfigService,
+    private httpService: HttpService,
+  ) {}
 
   async onModuleInit() {
     const config = this.configService as unknown as IConfig;
@@ -84,15 +88,42 @@ export class GoogleSheetsService implements OnModuleInit {
     const rowData = this.mapToRow(booking);
 
     if (existingRow) {
-      // Manually set values to avoid Object.assign on Row object which might be tricky with types
+      // Merge values: only update if the new value is not empty
       for (const [key, value] of Object.entries(rowData)) {
-        existingRow.set(key, value);
+        const newValue =
+          value !== undefined && value !== null ? String(value) : '';
+        const isNewValueEmpty = newValue.trim() === '';
+
+        // Protection for 'Відретушовані фото': ONLY update if SimplyBook says TRUE.
+        // This prevents SimplyBook from clearing manual checkmarks in the sheet.
+        if (key === 'Відретушовані фото') {
+          if (value === true || value === 'TRUE') {
+            existingRow.set(key, value);
+          }
+          continue;
+        }
+
+        // For other fields, only update if the new value is non-empty.
+        if (
+          !isNewValueEmpty ||
+          ['ID', 'Дата фотосесії', 'Година фотосесії'].includes(key)
+        ) {
+          existingRow.set(key, value);
+        }
       }
       await existingRow.save();
     } else {
       await sheet.addRow(rowData);
     }
-    await this.triggerAutoSort(sheet.title);
+
+    // Only send 'retouched' to GAS if it's true OR if it's a new row.
+    // This ensures new rows get checkboxes, but existing rows preserve manual checks.
+    const shouldSyncRetouched = !existingRow || !!booking.retouched;
+    await this.triggerAutoSort(
+      sheet.title,
+      booking.id,
+      shouldSyncRetouched ? !!booking.retouched : undefined,
+    );
   }
 
   async deleteBooking(booking: Partial<BookingData>) {
@@ -138,10 +169,27 @@ export class GoogleSheetsService implements OnModuleInit {
     };
   }
 
-  async triggerAutoSort(sheetName: string) {
-    const url = this.configService.get('GOOGLE_SCRIPT_SORT_URL') as string;
+  async triggerAutoSort(
+    sheetName: string,
+    bookingId?: string | number,
+    retouched?: boolean,
+  ) {
+    const url = this.configService.get<string>(
+      'GOOGLE_SCRIPT_SORT_URL',
+    ) as string;
+    const apiKey = this.configService.get<string>(
+      'GOOGLE_SCRIPT_API_KEY',
+    ) as string;
+
+    const data = {
+      'X-API-KEY': apiKey,
+      sheetName: sheetName,
+      id: bookingId,
+      retouched: retouched,
+    };
+
     try {
-      await axios.post(url, { sheetName: sheetName });
+      await firstValueFrom(this.httpService.post(url, data));
       console.log(`✅ Запит на сортування аркуша "${sheetName}" відправлено`);
     } catch (error) {
       console.error(
