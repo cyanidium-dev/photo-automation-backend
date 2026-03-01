@@ -7,10 +7,13 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
 
   constructor(private configService: ConfigService) {
+    const smtpPort = Number(
+      this.configService.get<string>('GMAIL_SMTP_PORT') || 465,
+    );
     this.transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
-      port: Number(this.configService.get<string>('GMAIL_SMTP_PORT')),
-      secure: true,
+      port: smtpPort,
+      secure: smtpPort === 465,
       auth: {
         user: this.configService.get<string>('GMAIL_SMTP_USER'),
         pass: this.configService.get<string>('GMAIL_SMTP_PASS'),
@@ -57,7 +60,7 @@ export class EmailService {
     return this.sendMail(to, subject, html);
   }
 
-  async sendReviewRequestMail(to: string, clientName: string) {
+  async sendReviewRequestMail(to: string) {
     const subject = 'Vos photos retouchées sont prêtes !';
     const reviewLink = 'https://g.page/r/CUD0UlxBaIr_EAE/review';
     const html = `
