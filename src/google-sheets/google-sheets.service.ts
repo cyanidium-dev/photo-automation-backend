@@ -211,23 +211,48 @@ export class GoogleSheetsService implements OnModuleInit {
     };
   }
 
-  async updateBookingStatus(id: string, date: string, status: string) {
+  async updateBookingStatus(
+    id?: string,
+    date?: string,
+    status?: string,
+    email?: string,
+  ) {
     try {
+      if (!date) {
+        console.warn('⚠️ Cannot update status: date is missing');
+        return;
+      }
       const sheet = await this.ensureMonthlySheet(date);
       const rows = await sheet.getRows();
-      const row = rows.find(
-        (r: GoogleSpreadsheetRow) => String(r.get('ID')) === String(id),
+
+      let row = rows.find(
+        (r: GoogleSpreadsheetRow) => id && String(r.get('ID')) === String(id),
       );
 
+      // Fallback to finding by email if ID not found or not provided
+      if (!row && email) {
+        row = rows.find(
+          (r: GoogleSpreadsheetRow) => String(r.get('Ел пошта')) === email,
+        );
+        if (row) {
+          console.log(`ℹ️ Found row for ${email} using email fallback`);
+        }
+      }
+
       if (row) {
-        row.set('Статус та помилки', status);
+        row.set('Статус та помилки', status || '');
         await row.save();
-        console.log(`✅ Status updated for booking ${id}: ${status}`);
+        console.log(`✅ Status updated for booking ${id || email}: ${status}`);
       } else {
-        console.warn(`⚠️ Could not find booking ${id} to update status`);
+        console.warn(
+          `⚠️ Could not find booking (id:${id}, email:${email}) to update status`,
+        );
       }
     } catch (error) {
-      console.error(`❌ Error updating status for booking ${id}:`, error);
+      console.error(
+        `❌ Error updating status for booking ${id || email}:`,
+        error,
+      );
     }
   }
 

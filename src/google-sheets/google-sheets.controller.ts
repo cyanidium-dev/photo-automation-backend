@@ -58,45 +58,45 @@ export class GoogleSheetsController {
           clientName || '',
           galleryLink,
         );
-        if (id && date) {
-          await this.googleSheetsService.updateBookingStatus(
-            id,
-            date,
-            'відправлен лист 1',
-          );
-        }
+        await this.googleSheetsService.updateBookingStatus(
+          id,
+          date,
+          'відправлен лист 1',
+          email,
+        );
         return { status: 'sent_gallery_link' };
       } catch (error) {
-        if (id && date) {
-          await this.googleSheetsService.updateBookingStatus(
-            id,
-            date,
-            'помилка відправки листа 1',
-          );
-        }
+        const errorMsg =
+          error instanceof Error ? error.message : 'Unknown error';
+        await this.googleSheetsService.updateBookingStatus(
+          id,
+          date,
+          `помилка відправки листа 1: ${errorMsg}`,
+          email,
+        );
         throw error;
       }
     }
 
     if (eventType === 'retouched' && retouched === true) {
       try {
-        await this.emailService.sendReviewRequestMail(email, clientName || '');
-        if (id && date) {
-          await this.googleSheetsService.updateBookingStatus(
-            id,
-            date,
-            'відправлен лист 2',
-          );
-        }
+        await this.emailService.sendReviewRequestMail(email);
+        await this.googleSheetsService.updateBookingStatus(
+          id,
+          date,
+          'відправлен лист 2',
+          email,
+        );
         return { status: 'sent_review_request' };
       } catch (error) {
-        if (id && date) {
-          await this.googleSheetsService.updateBookingStatus(
-            id,
-            date,
-            'помилка відправки листа 2',
-          );
-        }
+        const errorMsg =
+          error instanceof Error ? error.message : 'Unknown error';
+        await this.googleSheetsService.updateBookingStatus(
+          id,
+          date,
+          `помилка відправки листа 2: ${errorMsg}`,
+          email,
+        );
         throw error;
       }
     }
