@@ -26,11 +26,11 @@ export class GoogleSheetsService implements OnModuleInit {
 
   async onModuleInit() {
     const config = this.configService as unknown as IConfig;
-    const serviceAccountEmail = config.get(
-      'GOOGLE_SERVICE_ACCOUNT_EMAIL',
-    ) as string;
+    const serviceAccountEmail = (
+      config.get('GOOGLE_SERVICE_ACCOUNT_EMAIL') as string
+    ).trim();
 
-    const spreadsheetId = config.get('GOOGLE_SHEETS_ID') as string;
+    const spreadsheetId = (config.get('GOOGLE_SHEETS_ID') as string).trim();
 
     const rawKey = config.get('GOOGLE_SERVICE_ACCOUNT_KEY') as string;
 
@@ -40,11 +40,37 @@ export class GoogleSheetsService implements OnModuleInit {
     }
 
     // Newlines in env vars can be tricky. We handle escaped \n and also remove potential wrapped quotes.
-    const serviceAccountKey = rawKey
+    let serviceAccountKey = rawKey
       .replace(/\\n/g, '\n')
       .trim()
       .replace(/^"(.*)"$/, '$1')
       .replace(/^'(.*)'$/, '$1');
+
+    // Check if the key is actually the whole JSON string
+    if (serviceAccountKey.startsWith('{')) {
+      try {
+        const json = JSON.parse(serviceAccountKey) as Record<string, unknown>;
+        if (typeof json.private_key === 'string') {
+          serviceAccountKey = json.private_key;
+          console.log('✅ Extracted private_key from JSON string');
+        }
+      } catch {
+        console.warn(
+          '⚠️ Service account key starts with { but is not valid JSON',
+        );
+      }
+    }
+
+    // Final check for format
+    if (!serviceAccountKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      console.warn(
+        '⚠️ GOOGLE_SERVICE_ACCOUNT_KEY is missing header! Check your env vars.',
+      );
+    }
+
+    console.log(
+      `🔑 Key check: length=${serviceAccountKey.length}, startsWith="${serviceAccountKey.substring(0, 15)}..."`,
+    );
 
     const auth = new JWT({
       email: serviceAccountEmail,
@@ -52,8 +78,16 @@ export class GoogleSheetsService implements OnModuleInit {
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    this.doc = new GoogleSpreadsheet(spreadsheetId, auth);
-    await this.doc.loadInfo();
+    try {
+      this.doc = new GoogleSpreadsheet(spreadsheetId, auth);
+      await this.doc.loadInfo();
+      console.log('✅ Google Sheets connection established');
+    } catch (error) {
+      console.error(
+        '❌ Failed to connect to Google Sheets:',
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
 
   async ensureMonthlySheet(date: string): Promise<GoogleSpreadsheetWorksheet> {
