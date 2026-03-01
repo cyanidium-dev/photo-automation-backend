@@ -29,9 +29,9 @@ export class GoogleSheetsService implements OnModuleInit {
     const serviceAccountEmail = config.get(
       'GOOGLE_SERVICE_ACCOUNT_EMAIL',
     ) as string;
-    const serviceAccountKey = (
-      config.get('GOOGLE_SERVICE_ACCOUNT_KEY') as string
-    ).replace(/\\n/g, '\n');
+    const serviceAccountKey = config.get(
+      'GOOGLE_SERVICE_ACCOUNT_KEY',
+    ) as string;
     const spreadsheetId = config.get('GOOGLE_SHEETS_ID') as string;
 
     if (!serviceAccountEmail || !serviceAccountKey || !spreadsheetId) {
@@ -41,7 +41,7 @@ export class GoogleSheetsService implements OnModuleInit {
 
     const auth = new JWT({
       email: serviceAccountEmail,
-      key: serviceAccountKey,
+      key: serviceAccountKey.replace(/\\n/g, '\n'),
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
@@ -166,7 +166,28 @@ export class GoogleSheetsService implements OnModuleInit {
       'Номер телефону': booking.phone,
       'Ел пошта': booking.email,
       Місто: booking.city,
+      'Статус та помилки': booking.status || '',
     };
+  }
+
+  async updateBookingStatus(id: string, date: string, status: string) {
+    try {
+      const sheet = await this.ensureMonthlySheet(date);
+      const rows = await sheet.getRows();
+      const row = rows.find(
+        (r: GoogleSpreadsheetRow) => String(r.get('ID')) === String(id),
+      );
+
+      if (row) {
+        row.set('Статус та помилки', status);
+        await row.save();
+        console.log(`✅ Status updated for booking ${id}: ${status}`);
+      } else {
+        console.warn(`⚠️ Could not find booking ${id} to update status`);
+      }
+    } catch (error) {
+      console.error(`❌ Error updating status for booking ${id}:`, error);
+    }
   }
 
   async triggerAutoSort(

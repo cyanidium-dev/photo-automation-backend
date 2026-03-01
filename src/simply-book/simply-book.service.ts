@@ -192,6 +192,7 @@ export class SimplyBookService {
       phone: String(client.phone || data.client_phone || ''),
       email: String(client.email || data.client_email || ''),
       city: String(data.location || ''),
+      status: 'запис оновлено',
     };
   }
 }

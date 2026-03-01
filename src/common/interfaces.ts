@@ -21,4 +21,5 @@ export interface BookingData {
   phone: string;
   email: string;
   city: string;
+  status?: string;
 }

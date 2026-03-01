@@ -11,6 +11,8 @@ import { EmailService } from '../email/email.service.js';
 import { GoogleSheetsService } from './google-sheets.service.js';
 
 export class SheetsUpdatePayload {
+  id?: string;
+  date?: string;
   clientName?: string;
   email?: string;
   galleryLink?: string;
@@ -40,8 +42,9 @@ export class GoogleSheetsController {
 
     console.log('Received Sheets update webhook:', payload);
 
-    // Expecting payload: { clientName, email, galleryLink, retouched, type }
-    const { clientName, email, galleryLink, retouched, eventType } = payload;
+    // Expecting payload: { id, date, clientName, email, galleryLink, retouched, eventType }
+    const { id, date, clientName, email, galleryLink, retouched, eventType } =
+      payload;
 
     if (!email) {
       console.warn('Received update without email');
@@ -49,17 +52,53 @@ export class GoogleSheetsController {
     }
 
     if (eventType === 'gallery_link' && galleryLink) {
-      await this.emailService.sendGalleryLinkMail(
-        email,
-        clientName || '',
-        galleryLink,
-      );
-      return { status: 'sent_gallery_link' };
+      try {
+        await this.emailService.sendGalleryLinkMail(
+          email,
+          clientName || '',
+          galleryLink,
+        );
+        if (id && date) {
+          await this.googleSheetsService.updateBookingStatus(
+            id,
+            date,
+            'відправлен лист 1',
+          );
+        }
+        return { status: 'sent_gallery_link' };
+      } catch (error) {
+        if (id && date) {
+          await this.googleSheetsService.updateBookingStatus(
+            id,
+            date,
+            'помилка відправки листа 1',
+          );
+        }
+        throw error;
+      }
     }
 
     if (eventType === 'retouched' && retouched === true) {
-      await this.emailService.sendReviewRequestMail(email, clientName || '');
-      return { status: 'sent_review_request' };
+      try {
+        await this.emailService.sendReviewRequestMail(email, clientName || '');
+        if (id && date) {
+          await this.googleSheetsService.updateBookingStatus(
+            id,
+            date,
+            'відправлен лист 2',
+          );
+        }
+        return { status: 'sent_review_request' };
+      } catch (error) {
+        if (id && date) {
+          await this.googleSheetsService.updateBookingStatus(
+            id,
+            date,
+            'помилка відправки листа 2',
+          );
+        }
+        throw error;
+      }
     }
 
     return { status: 'no_action' };

@@ -21,6 +21,7 @@ export const GOOGLE_SHEET_COLUMNS = [
   'Номер телефону', // T
   'Ел пошта', // U
   'Місто', // V
+  'Статус та помилки', // W
 ];
 
 export enum ColumnIndex {
@@ -46,4 +47,5 @@ export enum ColumnIndex {
   PHONE = 19,
   EMAIL = 20,
   CITY = 21,
+  STATUS = 22,
 }
