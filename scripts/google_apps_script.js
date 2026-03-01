@@ -14,6 +14,7 @@ const CONFIG = {
         GALLERY_LINK: 18, // R
         CLIENT_NAME: 19,  // S
         EMAIL: 21,        // U
+        STATUS: 23,       // W
     }
 };
 
@@ -74,6 +75,7 @@ function onSheetEdit(e) {
                     galleryLink: galleryLink,
                     eventType: 'gallery_link'
                 });
+                sheet.getRange(row, CONFIG.COL.STATUS).setValue("лист відправлено");
             }
         }
     }
@@ -89,6 +91,7 @@ function onSheetEdit(e) {
                 retouched: true,
                 eventType: 'retouched'
             });
+            sheet.getRange(row, CONFIG.COL.STATUS).setValue("лист відправлено");
         }
     }
 

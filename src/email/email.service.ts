@@ -1,48 +1,51 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import { google } from 'googleapis';
 
 @Injectable()
 export class EmailService {
-  private transporter: nodemailer.Transporter;
-
+  private oauth2Client: InstanceType<typeof google.auth.OAuth2>;
   constructor(private configService: ConfigService) {
-    const smtpPort = Number(
-      this.configService.get<string>('GMAIL_SMTP_PORT') || 465,
+    this.oauth2Client = new google.auth.OAuth2(
+      this.configService.get<string>('GMAIL_CLIENT_ID'),
+      this.configService.get<string>('GMAIL_CLIENT_SECRET'),
+      'https://developers.google.com/oauthplayground',
     );
-
-    const transportOptions = {
-      host: 'smtp.gmail.com',
-      port: smtpPort,
-      secure: smtpPort === 465, // true for 465, false for 587
-      auth: {
-        user: this.configService.get<string>('GMAIL_SMTP_USER'),
-        pass: this.configService.get<string>('GMAIL_SMTP_PASS'),
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-      // Force IPv4 to avoid ENETUNREACH in environments without IPv6
-      family: 4,
-    };
-
-    // Use a double cast to avoid the unsafe 'any' warning while allowing 'family'
-    this.transporter = nodemailer.createTransport(
-      transportOptions as unknown as nodemailer.TransportOptions,
-    );
+    this.oauth2Client.setCredentials({
+      refresh_token: this.configService.get<string>('GMAIL_REFRESH_TOKEN'),
+    });
   }
 
   async sendMail(to: string, subject: string, html: string) {
     try {
-      await this.transporter.sendMail({
-        from: this.configService.get<string>('GMAIL_SMTP_USER'),
+      const { token } = await this.oauth2Client.getAccessToken();
+      if (!token) {
+        throw new Error('Failed to generate Gmail access token');
+      }
+
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          type: 'OAuth2',
+          user: this.configService.get<string>('GMAIL_SMTP_USER'),
+          clientId: this.configService.get<string>('GMAIL_CLIENT_ID'),
+          clientSecret: this.configService.get<string>('GMAIL_CLIENT_SECRET'),
+          refreshToken: this.configService.get<string>('GMAIL_REFRESH_TOKEN'),
+          accessToken: token,
+        },
+      } as unknown as nodemailer.TransportOptions);
+
+      await transporter.sendMail({
+        from: `Studio photo Yuliia S <${this.configService.get<string>('GMAIL_SMTP_USER')}>`,
         to,
         subject,
         html,
       });
-      console.log(`Email sent to ${to}`);
+
+      console.log(`Email sent via Gmail API to ${to}`);
     } catch (error) {
-      console.error('Error sending email:', error);
+      console.error('Gmail API Error:', error);
       throw error;
     }
   }
