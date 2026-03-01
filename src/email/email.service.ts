@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
-import SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 @Injectable()
 export class EmailService {
@@ -11,11 +10,8 @@ export class EmailService {
     const smtpPort = Number(
       this.configService.get<string>('GMAIL_SMTP_PORT') || 465,
     );
-    interface SMTPTransportOptions extends SMTPTransport.Options {
-      family?: number;
-    }
 
-    const transportOptions: SMTPTransportOptions = {
+    const transportOptions = {
       host: 'smtp.gmail.com',
       port: smtpPort,
       secure: smtpPort === 465, // true for 465, false for 587
@@ -26,10 +22,14 @@ export class EmailService {
       tls: {
         rejectUnauthorized: false,
       },
-      // Force IPv4 to avoid ENETUNREACH on environments without IPv6 support
+      // Force IPv4 to avoid ENETUNREACH in environments without IPv6
       family: 4,
     };
-    this.transporter = nodemailer.createTransport(transportOptions);
+
+    // Use a double cast to avoid the unsafe 'any' warning while allowing 'family'
+    this.transporter = nodemailer.createTransport(
+      transportOptions as unknown as nodemailer.TransportOptions,
+    );
   }
 
   async sendMail(to: string, subject: string, html: string) {

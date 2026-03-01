@@ -7,6 +7,7 @@ const CONFIG = {
     DEBOUNCE_MS: 5000,
     CACHE_TTL: 25,
     COL: {
+        ID: 1,            // A
         DATE: 3,          // C
         TIME: 4,          // D
         RETOUCHED: 5,     // E
@@ -37,6 +38,8 @@ function onSheetEdit(e) {
 
     const clientEmail = rowData[CONFIG.COL.EMAIL - 1];
     const clientName = rowData[CONFIG.COL.CLIENT_NAME - 1];
+    const bookingId = rowData[CONFIG.COL.ID - 1];
+    const bookingDate = rowData[CONFIG.COL.DATE - 1];
 
 
     // ── ЛОГІКА: Посилання на галерею ──────────────────────────────
@@ -64,9 +67,11 @@ function onSheetEdit(e) {
 
             if (cache.get(lockKey) === editTs) {
                 sendWebhook({
+                    id: bookingId,
+                    date: bookingDate,
                     clientName,
                     email: clientEmail,
-                    galleryLink: galleryLink, // Тепер тут точно буде посилання з https
+                    galleryLink: galleryLink,
                     eventType: 'gallery_link'
                 });
             }
@@ -76,7 +81,14 @@ function onSheetEdit(e) {
     // ── ЛОГІКА: Відретушовані фото ──
     if (col === CONFIG.COL.RETOUCHED && (value === true || value === 'TRUE')) {
         if (isValidEmail(clientEmail)) {
-            sendWebhook({ clientName, email: clientEmail, retouched: true, eventType: 'retouched' });
+            sendWebhook({
+                id: bookingId,
+                date: bookingDate,
+                clientName,
+                email: clientEmail,
+                retouched: true,
+                eventType: 'retouched'
+            });
         }
     }
 
@@ -219,11 +231,11 @@ function sendWebhook(payload) {
         payload: JSON.stringify(payload),
         muteHttpExceptions: true
     };
-    const baseUrl = props.BACKEND_URL.trim().replace(/\/$/, "");
+    const baseUrl = CONFIG.BACKEND_URL.trim().replace(/\/$/, "");
     const fullUrl = baseUrl + "/webhooks/sheets/update";
-    console.log('fullUrl', fullUrl)
+    console.log('Sending webhook to:', fullUrl);
     try {
-        const response = UrlFetchApp.fetch(`${CONFIG.BACKEND_URL}/webhooks/sheets/update`, options);
+        const response = UrlFetchApp.fetch(fullUrl, options);
         console.log(`[${payload.eventType}] Status: ${response.getResponseCode()}`);
     } catch (err) {
         console.error(`Webhook error: ${err}`);
