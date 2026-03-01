@@ -6,23 +6,28 @@ const CONFIG = {
     API_KEY: props.API_SECRET_KEY || '',
     DEBOUNCE_MS: 5000,
     CACHE_TTL: 25,
-    COL: {
-        ID: 1,            // A
-        DATE: 3,          // C
-        TIME: 4,          // D
-        RETOUCHED: 5,     // E
-        GALLERY_LINK: 18, // R
-        CLIENT_NAME: 19,  // S
-        EMAIL: 21,        // U
-        STATUS: 23,       // W
-    }
 };
+
+/**
+ * Returns a map of column header names to their 1‑based column indices for the given sheet.
+ * The first row is expected to contain the headers exactly as defined in the backend constants.
+ */
+function getColumnMap(sheet) {
+    const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const map = {};
+    headerRow.forEach((name, idx) => {
+        if (name) {
+            map[name.toString().trim()] = idx + 1; // 1‑based index
+        }
+    });
+    return map;
+}
 
 /**
  * Головний обробник подій редагування
  */
 function onSheetEdit(e) {
-    console.log("--- ТРИГЕР onSheetEdit ЗАПУЩЕНО ---");
+    console.log("--- ТРИГЕР onSheetEdit Запущено ---");
     if (!e || !e.range) return;
 
     const range = e.range;
@@ -31,20 +36,24 @@ function onSheetEdit(e) {
     const row = range.getRow();
     const value = range.getValue();
 
+    // Build a dynamic column map for this sheet (header row based)
+    const COL = getColumnMap(sheet);
+
+
     if (row <= 1) return;
 
     // Читаємо рядок один раз
-    const lastCol = Math.max(col, CONFIG.COL.EMAIL, CONFIG.COL.GALLERY_LINK);
+    const lastCol = Math.max(col, COL['Ел пошта'], COL['Посилання']);
     const rowData = sheet.getRange(row, 1, 1, lastCol).getValues()[0];
 
-    const clientEmail = rowData[CONFIG.COL.EMAIL - 1];
-    const clientName = rowData[CONFIG.COL.CLIENT_NAME - 1];
-    const bookingId = rowData[CONFIG.COL.ID - 1];
-    const bookingDate = rowData[CONFIG.COL.DATE - 1];
+    const clientEmail = rowData[COL['Ел пошта'] - 1];
+    const clientName = rowData[COL['ПІ клієнта'] - 1];
+    const bookingId = rowData[COL['ID'] - 1];
+    const bookingDate = rowData[COL['Дата фотосесії'] - 1];
 
 
     // ── ЛОГІКА: Посилання на галерею ──────────────────────────────
-    if (col === CONFIG.COL.GALLERY_LINK) {
+    if (col === COL['Посилання']) {
         let galleryLink = value ? value.toString().trim() : '';
 
         if (galleryLink !== '') {
@@ -75,13 +84,13 @@ function onSheetEdit(e) {
                     galleryLink: galleryLink,
                     eventType: 'gallery_link'
                 });
-                sheet.getRange(row, CONFIG.COL.STATUS).setValue("лист відправлено 1");
+                sheet.getRange(row, COL['Статус та помилки']).setValue("лист відправлено 1");
             }
         }
     }
 
     // ── ЛОГІКА: Відретушовані фото ──
-    if (col === CONFIG.COL.RETOUCHED && (value === true || value === 'TRUE')) {
+    if (col === COL['Відретушовані фото'] && (value === true || value === 'TRUE')) {
         if (isValidEmail(clientEmail)) {
             sendWebhook({
                 id: bookingId,
@@ -91,13 +100,13 @@ function onSheetEdit(e) {
                 retouched: true,
                 eventType: 'retouched'
             });
-            sheet.getRange(row, CONFIG.COL.STATUS).setValue("лист відправлено 2");
+            sheet.getRange(row, COL['Статус та помилки']).setValue("лист відправлено 2");
         }
     }
 
     // ── ЛОГІКА: Сортування ──
-    if (col === CONFIG.COL.DATE || col === CONFIG.COL.TIME) {
-        if (rowData[CONFIG.COL.DATE - 1] && rowData[CONFIG.COL.TIME - 1]) {
+    if (col === COL['Дата фотосесії'] || col === COL['Година фотосесії']) {
+        if (rowData[COL['Дата фотосесії'] - 1] && rowData[COL['Година фотосесії'] - 1]) {
             const cache = CacheService.getScriptCache();
             const lockKey = `sort_lock_${sheet.getName()}`;
             const editTs = Date.now().toString();
@@ -110,7 +119,7 @@ function onSheetEdit(e) {
             }
         }
     }
-    if (col === CONFIG.COL.DATE || col === CONFIG.COL.TIME || col === CONFIG.COL.RETOUCHED) {
+    if (col === COL['Дата фотосесії'] || col === COL['Година фотосесії'] || col === COL['Відретушовані фото']) {
         fixCheckbox(sheet, row);
     }
 }
@@ -135,14 +144,15 @@ function doPost(e) {
         // 1. Спочатку виконуємо сортування
         autoSortSheet(sheet);
 
+        const COL = getColumnMap(sheet);
+
         // 2. ЛОГІКА ВИПРАВЛЕННЯ ЧЕКБОКСА ЗА ID
         const idToFind = postData.id; // Бекенд має передавати "id" у JSON
 
-        if (idToFind) {
+        if (idToFind && COL['ID']) {
             const lastRow = sheet.getLastRow();
-            // Отримуємо всі ID з першої колонки (Колонка A = 1)
-            // Якщо ID в іншій колонці, замініть "1" на потрібний номер
-            const ids = sheet.getRange(1, 1, lastRow).getValues();
+            // Отримуємо всі ID з колонки ID
+            const ids = sheet.getRange(1, COL['ID'], lastRow).getValues();
 
             let targetRow = -1;
             // Шукаємо рядок з потрібним ID
@@ -154,8 +164,8 @@ function doPost(e) {
             }
 
             // 3. Якщо рядок знайдено — примусово ставимо чекбокс
-            if (targetRow !== -1 && postData.hasOwnProperty('retouched') && postData.retouched !== undefined) {
-                const cell = sheet.getRange(targetRow, CONFIG.COL.RETOUCHED);
+            if (targetRow !== -1 && postData.hasOwnProperty('retouched') && postData.retouched !== undefined && COL['Відретушовані фото']) {
+                const cell = sheet.getRange(targetRow, COL['Відретушовані фото']);
 
                 // РАДИКАЛЬНИЙ ФІКС: очищуємо текст і ставимо графічний елемент
                 cell.clearContent();
@@ -189,11 +199,14 @@ function autoSortSheet(sheet) {
     try {
         if (!lock.tryLock(10000)) return; // Чекаємо 10 сек
 
+        const COL = getColumnMap(sheet);
+        if (!COL['Дата фотосесії'] || !COL['Година фотосесії']) return;
+
         const lastRow = sheet.getLastRow();
         if (lastRow <= 1) return;
 
         // Нормалізація дат
-        const dateRange = sheet.getRange(2, CONFIG.COL.DATE, lastRow - 1, 1);
+        const dateRange = sheet.getRange(2, COL['Дата фотосесії'], lastRow - 1, 1);
         const dateValues = dateRange.getValues().map(([val]) => {
             if (typeof val === 'string' && val.includes('.')) {
                 const p = val.split('.');
@@ -204,13 +217,13 @@ function autoSortSheet(sheet) {
         });
 
         dateRange.setValues(dateValues);
-        sheet.getRange(2, CONFIG.COL.DATE, lastRow - 1, 1).setNumberFormat('dd.mm.yyyy');
-        sheet.getRange(2, CONFIG.COL.TIME, lastRow - 1, 1).setNumberFormat('HH:mm:ss');
+        sheet.getRange(2, COL['Дата фотосесії'], lastRow - 1, 1).setNumberFormat('dd.mm.yyyy');
+        sheet.getRange(2, COL['Година фотосесії'], lastRow - 1, 1).setNumberFormat('HH:mm:ss');
 
         const dataRange = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn());
         dataRange.sort([
-            { column: CONFIG.COL.DATE, ascending: true },
-            { column: CONFIG.COL.TIME, ascending: true },
+            { column: COL['Дата фотосесії'], ascending: true },
+            { column: COL['Година фотосесії'], ascending: true },
         ]);
     } catch (e) {
         console.error("Sort error: " + e.message);
@@ -260,7 +273,10 @@ function jsonResponse(data) {
  */
 function fixCheckbox(sheet, row) {
     if (row <= 1) return;
-    const cell = sheet.getRange(row, CONFIG.COL.RETOUCHED);
+    const COL = getColumnMap(sheet);
+    if (!COL['Відретушовані фото']) return;
+
+    const cell = sheet.getRange(row, COL['Відретушовані фото']);
     const val = cell.getValue();
 
     // Перетворюємо будь-яке значення (текст "false", рядок "TRUE", null) у справжній Boolean
