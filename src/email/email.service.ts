@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
 import { google } from 'googleapis';
 
 @Injectable()
 export class EmailService {
   private oauth2Client: InstanceType<typeof google.auth.OAuth2>;
+
   constructor(private configService: ConfigService) {
     this.oauth2Client = new google.auth.OAuth2(
       this.configService.get<string>('GMAIL_CLIENT_ID'),
@@ -19,33 +19,45 @@ export class EmailService {
 
   async sendMail(to: string, subject: string, html: string) {
     try {
-      const { token } = await this.oauth2Client.getAccessToken();
-      if (!token) {
-        throw new Error('Failed to generate Gmail access token');
-      }
+      const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
 
-      const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          type: 'OAuth2',
-          user: this.configService.get<string>('GMAIL_SMTP_USER'),
-          clientId: this.configService.get<string>('GMAIL_CLIENT_ID'),
-          clientSecret: this.configService.get<string>('GMAIL_CLIENT_SECRET'),
-          refreshToken: this.configService.get<string>('GMAIL_REFRESH_TOKEN'),
-          accessToken: token,
-        },
-      } as unknown as nodemailer.TransportOptions);
-
-      await transporter.sendMail({
-        from: `Studio photo Yuliia S <${this.configService.get<string>('GMAIL_SMTP_USER')}>`,
-        to,
-        subject,
+      // Формуємо MIME-повідомлення (заголовки + контент)
+      // Використовуємо Base64 для теми, щоб підтримувати спецсимволи та емодзі
+      const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
+      const messageParts = [
+        `From: Studio photo Yuliia S <${this.configService.get<string>('GMAIL_SMTP_USER')}>`,
+        `To: ${to}`,
+        'Content-Type: text/html; charset=utf-8',
+        'MIME-Version: 1.0',
+        `Subject: ${utf8Subject}`,
+        '',
         html,
+      ];
+      const message = messageParts.join('\n');
+
+      // Gmail API очікує base64url формат (заміна + на - та / на _)
+      const encodedMessage = Buffer.from(message)
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+      console.log(`Sending email via HTTP API to: ${to}...`);
+
+      const res = await gmail.users.messages.send({
+        userId: 'me',
+        requestBody: {
+          raw: encodedMessage,
+        },
       });
 
-      console.log(`Email sent via Gmail API to ${to}`);
+      console.log('Email successfully sent! ID:', res.data.id);
+      return res.data;
     } catch (error) {
-      console.error('Gmail API Error:', error);
+      // Якщо токен протух, googleapis спробує його оновити автоматично,
+      // але якщо помилка в самих credentials — ми побачимо її тут
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      console.error('Gmail HTTP API Error:', error.message);
       throw error;
     }
   }
