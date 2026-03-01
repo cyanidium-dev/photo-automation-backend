@@ -29,10 +29,12 @@ export class GoogleSheetsService implements OnModuleInit {
     const serviceAccountEmail = config.get(
       'GOOGLE_SERVICE_ACCOUNT_EMAIL',
     ) as string;
-    const serviceAccountKey = config.get(
-      'GOOGLE_SERVICE_ACCOUNT_KEY',
-    ) as string;
+
     const spreadsheetId = config.get('GOOGLE_SHEETS_ID') as string;
+
+    const serviceAccountKey = (
+      config.get('GOOGLE_SERVICE_ACCOUNT_KEY') as string
+    ).replace(/\\n/g, '\n');
 
     if (!serviceAccountEmail || !serviceAccountKey || !spreadsheetId) {
       console.error('Google Sheets configuration is missing');
