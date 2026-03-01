@@ -32,18 +32,23 @@ export class GoogleSheetsService implements OnModuleInit {
 
     const spreadsheetId = config.get('GOOGLE_SHEETS_ID') as string;
 
-    const serviceAccountKey = (
-      config.get('GOOGLE_SERVICE_ACCOUNT_KEY') as string
-    ).replace(/\\n/g, '\n');
+    const rawKey = config.get('GOOGLE_SERVICE_ACCOUNT_KEY') as string;
 
-    if (!serviceAccountEmail || !serviceAccountKey || !spreadsheetId) {
+    if (!serviceAccountEmail || !rawKey || !spreadsheetId) {
       console.error('Google Sheets configuration is missing');
       return;
     }
 
+    // Newlines in env vars can be tricky. We handle escaped \n and also remove potential wrapped quotes.
+    const serviceAccountKey = rawKey
+      .replace(/\\n/g, '\n')
+      .trim()
+      .replace(/^"(.*)"$/, '$1')
+      .replace(/^'(.*)'$/, '$1');
+
     const auth = new JWT({
       email: serviceAccountEmail,
-      key: serviceAccountKey.replace(/\\n/g, '\n'),
+      key: serviceAccountKey,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
