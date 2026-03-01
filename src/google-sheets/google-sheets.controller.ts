@@ -46,12 +46,37 @@ export class GoogleSheetsController {
     const { id, date, clientName, email, galleryLink, retouched, eventType } =
       payload;
 
-    if (!email) {
-      console.warn('Received update without email');
-      return { status: 'ignored' };
+    // Basic validation for finding the row
+    if (!id && !email) {
+      console.warn('Received update without ID and without Email');
+      return { status: 'ignored', reason: 'no_identifier' };
     }
 
-    if (eventType === 'gallery_link' && galleryLink) {
+    if (!date) {
+      console.warn('Received update without Date');
+      return { status: 'ignored', reason: 'no_date' };
+    }
+
+    // Validation for specific events
+    if (eventType === 'gallery_link') {
+      if (!email) {
+        await this.googleSheetsService.updateBookingStatus(
+          id,
+          date,
+          'помилка: відсутня ел. пошта',
+        );
+        return { status: 'error', reason: 'missing_email' };
+      }
+      if (!galleryLink) {
+        await this.googleSheetsService.updateBookingStatus(
+          id,
+          date,
+          'помилка: відсутнє посилання на галерею',
+          email,
+        );
+        return { status: 'error', reason: 'missing_gallery_link' };
+      }
+
       try {
         await this.emailService.sendGalleryLinkMail(
           email,
@@ -78,7 +103,25 @@ export class GoogleSheetsController {
       }
     }
 
-    if (eventType === 'retouched' && retouched === true) {
+    if (eventType === 'retouched') {
+      if (!email) {
+        await this.googleSheetsService.updateBookingStatus(
+          id,
+          date,
+          'помилка: відсутня ел. пошта',
+        );
+        return { status: 'error', reason: 'missing_email' };
+      }
+      if (retouched !== true) {
+        await this.googleSheetsService.updateBookingStatus(
+          id,
+          date,
+          'помилка: відсутня відмітка про ретуш',
+          email,
+        );
+        return { status: 'error', reason: 'not_retouched' };
+      }
+
       try {
         await this.emailService.sendReviewRequestMail(email);
         await this.googleSheetsService.updateBookingStatus(
@@ -101,7 +144,15 @@ export class GoogleSheetsController {
       }
     }
 
-    return { status: 'no_action' };
+    // If event type is unknown or not handled
+    if (id && date) {
+      await this.googleSheetsService.updateBookingStatus(
+        id,
+        date,
+        `помилка: невідомий тип події (${eventType})`,
+        email,
+      );
+    }
   }
 
   @Post('trigger-sort')
