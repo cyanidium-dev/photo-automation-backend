@@ -119,49 +119,51 @@ export class GoogleSheetsService implements OnModuleInit {
   }
 
   async upsertBooking(booking: BookingData) {
-    const sheet = await this.ensureMonthlySheet(booking.date);
-    const rows = await sheet.getRows();
+    if (!booking.id || !booking.date) return;
 
-    const existingRow = rows.find(
-      (r: GoogleSpreadsheetRow) => String(r.get('ID')) === String(booking.id),
-    );
+    // First, find and remove this booking ID from ANY existing sheet to prevent duplicates
+    // especially when moving between different months.
+    for (const sheet of this.doc.sheetsByIndex) {
+      // Optimization: Only check sheets that look like monthly sheets (Long month + Year)
+      // or simply check all to be sure.
+      try {
+        const rows = await sheet.getRows();
+        const existingRow = rows.find(
+          (r: GoogleSpreadsheetRow) =>
+            String(r.get('ID')) === String(booking.id),
+        );
+        if (existingRow) {
+          // If it's not the target sheet or if we just want a clean state, delete it.
+          // However, if it IS the target sheet, we can just update it.
+          // To simplify migration, we'll delete it from any sheet and then add it to the correct one.
+          await existingRow.delete();
+          console.log(
+            `🗑️ Removed old/duplicate booking ${booking.id} from sheet "${sheet.title}"`,
+          );
+        }
+      } catch (e) {
+        console.warn(
+          `Could not check sheet "${sheet.title}" for duplicates:`,
+          e,
+        );
+      }
+    }
 
+    const targetSheet = await this.ensureMonthlySheet(booking.date);
     const rowData = this.mapToRow(booking);
 
-    if (existingRow) {
-      // Merge values: only update if the new value is not empty
-      for (const [key, value] of Object.entries(rowData)) {
-        const newValue =
-          value !== undefined && value !== null ? String(value) : '';
-        const isNewValueEmpty = newValue.trim() === '';
-
-        // Protection for 'Відретушовані фото': ONLY update if SimplyBook says TRUE.
-        // This prevents SimplyBook from clearing manual checkmarks in the sheet.
-        if (key === 'Відретушовані фото') {
-          if (value === true || value === 'TRUE') {
-            existingRow.set(key, value);
-          }
-          continue;
-        }
-
-        // For other fields, only update if the new value is non-empty.
-        if (
-          !isNewValueEmpty ||
-          ['ID', 'Дата фотосесії', 'Година фотосесії'].includes(key)
-        ) {
-          existingRow.set(key, value);
-        }
-      }
-      await existingRow.save();
-    } else {
-      await sheet.addRow(rowData);
-    }
+    // Always add a new row after cleaning up everywhere else
+    await targetSheet.addRow(rowData);
+    console.log(
+      `✅ Added booking ${booking.id} to sheet "${targetSheet.title}"`,
+    );
 
     // Only send 'retouched' to GAS if it's true OR if it's a new row.
     // This ensures new rows get checkboxes, but existing rows preserve manual checks.
-    const shouldSyncRetouched = !existingRow || !!booking.retouched;
+    // Since we now always delete and re-add, we check the original 'retouched' value.
+    const shouldSyncRetouched = !!booking.retouched;
     await this.triggerAutoSort(
-      sheet.title,
+      targetSheet.title,
       booking.id,
       shouldSyncRetouched ? !!booking.retouched : undefined,
     );

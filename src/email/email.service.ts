@@ -85,7 +85,9 @@ export class EmailService {
 
   async sendReviewRequestMail(to: string) {
     const subject = 'Vos photos retouchées sont prêtes !';
-    const reviewLink = 'https://g.page/r/CUD0UlxBaIr_EAE/review';
+    const reviewLink =
+      this.configService.get<string>('GMAIL_REVIEW_LINK') ||
+      'https://g.page/r/CUD0UlxBaIr_EAE/review';
     const html = `
       <p>Bonjour,</p>
       <p>Nous sommes ravis de vous informer que vos photos ont été retouchées.</p>
