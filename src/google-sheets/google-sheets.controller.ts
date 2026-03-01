@@ -86,7 +86,7 @@ export class GoogleSheetsController {
         await this.googleSheetsService.updateBookingStatus(
           id,
           date,
-          'лист відправлено',
+          'лист відправлено 1',
           email,
         );
         return { status: 'sent_gallery_link' };
@@ -127,7 +127,7 @@ export class GoogleSheetsController {
         await this.googleSheetsService.updateBookingStatus(
           id,
           date,
-          'лист відправлено',
+          'лист відправлено 2',
           email,
         );
         return { status: 'sent_review_request' };

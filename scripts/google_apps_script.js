@@ -75,7 +75,7 @@ function onSheetEdit(e) {
                     galleryLink: galleryLink,
                     eventType: 'gallery_link'
                 });
-                sheet.getRange(row, CONFIG.COL.STATUS).setValue("лист відправлено");
+                sheet.getRange(row, CONFIG.COL.STATUS).setValue("лист відправлено 1");
             }
         }
     }
@@ -91,7 +91,7 @@ function onSheetEdit(e) {
                 retouched: true,
                 eventType: 'retouched'
             });
-            sheet.getRange(row, CONFIG.COL.STATUS).setValue("лист відправлено");
+            sheet.getRange(row, CONFIG.COL.STATUS).setValue("лист відправлено 2");
         }
     }
 

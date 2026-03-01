@@ -121,11 +121,11 @@ export class GoogleSheetsService implements OnModuleInit {
   async upsertBooking(booking: BookingData) {
     if (!booking.id || !booking.date) return;
 
+    let wasRetouched = !!booking.retouched;
+
     // First, find and remove this booking ID from ANY existing sheet to prevent duplicates
     // especially when moving between different months.
     for (const sheet of this.doc.sheetsByIndex) {
-      // Optimization: Only check sheets that look like monthly sheets (Long month + Year)
-      // or simply check all to be sure.
       try {
         const rows = await sheet.getRows();
         const existingRow = rows.find(
@@ -133,12 +133,17 @@ export class GoogleSheetsService implements OnModuleInit {
             String(r.get('ID')) === String(booking.id),
         );
         if (existingRow) {
-          // If it's not the target sheet or if we just want a clean state, delete it.
-          // However, if it IS the target sheet, we can just update it.
-          // To simplify migration, we'll delete it from any sheet and then add it to the correct one.
+          // CAPTURE manual checkbox state before deleting
+          const sheetRetouched = existingRow.get(
+            'Відретушовані фото',
+          ) as unknown;
+          if (sheetRetouched === true || sheetRetouched === 'TRUE') {
+            wasRetouched = true;
+          }
+
           await existingRow.delete();
           console.log(
-            `🗑️ Removed old/duplicate booking ${booking.id} from sheet "${sheet.title}"`,
+            `🗑️ Removed old/duplicate booking ${booking.id} from sheet "${sheet.title}" (wasRetouched: ${wasRetouched})`,
           );
         }
       } catch (e) {
@@ -149,6 +154,9 @@ export class GoogleSheetsService implements OnModuleInit {
       }
     }
 
+    // Apply the preserved state
+    booking.retouched = wasRetouched;
+
     const targetSheet = await this.ensureMonthlySheet(booking.date);
     const rowData = this.mapToRow(booking);
 
@@ -158,14 +166,11 @@ export class GoogleSheetsService implements OnModuleInit {
       `✅ Added booking ${booking.id} to sheet "${targetSheet.title}"`,
     );
 
-    // Only send 'retouched' to GAS if it's true OR if it's a new row.
-    // This ensures new rows get checkboxes, but existing rows preserve manual checks.
-    // Since we now always delete and re-add, we check the original 'retouched' value.
-    const shouldSyncRetouched = !!booking.retouched;
+    // Always sync retouched status to GAS to ensure checkbox is initialized
     await this.triggerAutoSort(
       targetSheet.title,
       booking.id,
-      shouldSyncRetouched ? !!booking.retouched : undefined,
+      !!booking.retouched,
     );
   }
 
