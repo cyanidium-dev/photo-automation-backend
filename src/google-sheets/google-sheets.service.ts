@@ -121,7 +121,7 @@ export class GoogleSheetsService implements OnModuleInit {
   async upsertBooking(booking: BookingData) {
     if (!booking.id || !booking.date) return;
 
-    let wasRetouched = !!booking.retouched;
+    const manualFields: Partial<BookingData> = {};
 
     // First, find and remove this booking ID from ANY existing sheet to prevent duplicates
     // especially when moving between different months.
@@ -133,17 +133,38 @@ export class GoogleSheetsService implements OnModuleInit {
             String(r.get('ID')) === String(booking.id),
         );
         if (existingRow) {
-          // CAPTURE manual checkbox state before deleting
-          const sheetRetouched = existingRow.get(
-            'Відретушовані фото',
-          ) as unknown;
-          if (sheetRetouched === true || sheetRetouched === 'TRUE') {
-            wasRetouched = true;
-          }
+          // CAPTURE manual fields before deleting
+          manualFields.balance = existingRow.get('Залишок') as string;
+          manualFields.retouched =
+            existingRow.get('Відретушовані фото') === true ||
+            existingRow.get('Відретушовані фото') === 'TRUE';
+          manualFields.type = existingRow.get('Тип фотосесії') as string;
+          manualFields.tariff = existingRow.get('Тариф') as string;
+          manualFields.deposit = existingRow.get('Завдаток') as string;
+          manualFields.payment = existingRow.get('Оплата') as string;
+          manualFields.source = existingRow.get('Звідки дізнались') as string;
+          manualFields.alreadyBeen = existingRow.get(
+            'Чи вже були на фотосесії',
+          ) as string;
+          manualFields.photoCount = existingRow.get('К-ть фото') as string;
+          manualFields.photographer = existingRow.get('Фотограф') as string;
+          manualFields.extraPhotographer = existingRow.get(
+            'Екстра Фотограф',
+          ) as string;
+          manualFields.photographerPayment = existingRow.get(
+            'Оплата фотографу',
+          ) as string;
+          manualFields.publicationAllowed = existingRow.get(
+            'Публікація чи дозволена',
+          ) as string;
+          manualFields.paymentMethod = existingRow.get(
+            'Спосіб оплати',
+          ) as string;
+          manualFields.galleryLink = existingRow.get('Посилання') as string;
 
           await existingRow.delete();
           console.log(
-            `🗑️ Removed old/duplicate booking ${booking.id} from sheet "${sheet.title}" (wasRetouched: ${wasRetouched})`,
+            `🗑️ Removed old/duplicate booking ${booking.id} from sheet "${sheet.title}" and captured manual fields.`,
           );
         }
       } catch (e) {
@@ -154,8 +175,31 @@ export class GoogleSheetsService implements OnModuleInit {
       }
     }
 
-    // Apply the preserved state
-    booking.retouched = wasRetouched;
+    // Apply preserved manual fields if they exist and are not empty
+    if (manualFields.balance) booking.balance = manualFields.balance;
+    if (manualFields.retouched !== undefined)
+      booking.retouched = manualFields.retouched;
+    if (manualFields.type) booking.type = manualFields.type;
+    if (manualFields.tariff) booking.tariff = manualFields.tariff;
+    if (manualFields.deposit !== undefined && manualFields.deposit !== '')
+      booking.deposit = manualFields.deposit;
+    if (manualFields.payment) booking.payment = manualFields.payment;
+    if (manualFields.source) booking.source = manualFields.source;
+    if (manualFields.alreadyBeen)
+      booking.alreadyBeen = manualFields.alreadyBeen;
+    if (manualFields.photoCount) booking.photoCount = manualFields.photoCount;
+    if (manualFields.photographer)
+      booking.photographer = manualFields.photographer;
+    if (manualFields.extraPhotographer)
+      booking.extraPhotographer = manualFields.extraPhotographer;
+    if (manualFields.photographerPayment)
+      booking.photographerPayment = manualFields.photographerPayment;
+    if (manualFields.publicationAllowed)
+      booking.publicationAllowed = manualFields.publicationAllowed;
+    if (manualFields.paymentMethod)
+      booking.paymentMethod = manualFields.paymentMethod;
+    if (manualFields.galleryLink)
+      booking.galleryLink = manualFields.galleryLink;
 
     const targetSheet = await this.ensureMonthlySheet(booking.date);
     const rowData = this.mapToRow(booking);

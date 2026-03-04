@@ -29,14 +29,28 @@ export class SimplyBookRecord {
   deposit_price?: string | number;
   performer_name?: string;
   client?: {
+    id?: number;
     name?: string;
     phone?: string;
     email?: string;
   };
+  service?: {
+    id?: number;
+    name?: string;
+    price?: string | number;
+    deposit_price?: string | number;
+  };
+  provider?: {
+    id?: number;
+    name?: string;
+  };
+  location?: {
+    id?: number;
+    name?: string;
+  };
   client_name?: string;
   client_phone?: string;
   client_email?: string;
-  location?: string;
 }
 
 export class SimplyBookWebhookPayload {
@@ -115,26 +129,46 @@ export class SimplyBookService {
     const token = await this.getToken();
 
     const ax = axios as unknown as IAxios;
-    const response = (await ax({
-      method: 'get',
-      url: `${this.userApiUrl}/admin/bookings`,
-      params: {
-        'filter[date_from]': from,
-        'filter[date_to]': to,
-      },
-      headers: {
-        'X-Company-Login': companyLogin,
-        'X-Token': token,
-      },
-    })) as {
-      data: SimplyBookRecord[] | SimplyBookResponse<SimplyBookRecord[]>;
-    };
-    const data = response.data;
+    const allBookings: BookingData[] = [];
+    let currentPage = 1;
+    let pagesCount = 1;
 
-    // REST V2 might return data directly or wrapped
-    const bookings = Array.isArray(data) ? data : data.data || [];
+    do {
+      const response = (await ax({
+        method: 'get',
+        url: `${this.userApiUrl}/admin/bookings`,
+        params: {
+          'filter[date_from]': from,
+          'filter[date_to]': to,
+          limit: 50,
+          page: currentPage,
+        },
+        headers: {
+          'X-Company-Login': companyLogin,
+          'X-Token': token,
+        },
+      })) as {
+        data:
+          | { data: SimplyBookRecord[]; metadata: { pages_count: number } }
+          | SimplyBookRecord[];
+      };
 
-    return bookings.map((b: SimplyBookRecord) => this.mapToBooking(b));
+      const data = response.data;
+      let bookings: SimplyBookRecord[] = [];
+
+      if (Array.isArray(data)) {
+        bookings = data;
+        pagesCount = 1;
+      } else {
+        bookings = data.data || [];
+        pagesCount = data.metadata?.pages_count || 1;
+      }
+
+      allBookings.push(...bookings.map((b) => this.mapToBooking(b)));
+      currentPage++;
+    } while (currentPage <= pagesCount);
+
+    return allBookings;
   }
 
   /**
@@ -166,6 +200,10 @@ export class SimplyBookService {
 
   private mapToBooking(data: SimplyBookRecord): BookingData {
     const client = data.client || {};
+    const service = data.service || {};
+    const provider = data.provider || {};
+    const location = data.location || {};
+
     const fullDate = data.start_datetime || data.start_date || '';
     const [startDate, startTime] = fullDate.split(' ');
 
@@ -175,14 +213,14 @@ export class SimplyBookService {
       date: startDate,
       time: startTime,
       retouched: false,
-      type: String(data.service_name || ''),
-      tariff: String(data.unit_price || ''),
-      deposit: String(data.deposit_price || '0'),
+      type: String(service.name || data.service_name || ''),
+      tariff: String(service.price || data.unit_price || ''),
+      deposit: String(service.deposit_price || data.deposit_price || '0'),
       payment: '',
       source: '',
       alreadyBeen: '',
       photoCount: '',
-      photographer: String(data.performer_name || ''),
+      photographer: String(provider.name || data.performer_name || ''),
       extraPhotographer: '',
       photographerPayment: '',
       publicationAllowed: '',
@@ -191,7 +229,10 @@ export class SimplyBookService {
       clientName: String(client.name || data.client_name || ''),
       phone: String(client.phone || data.client_phone || ''),
       email: String(client.email || data.client_email || ''),
-      city: String(data.location || ''),
+      city: String(
+        location.name ||
+          (typeof data.location === 'string' ? data.location : ''),
+      ),
       status: 'запис оновлено',
     };
   }

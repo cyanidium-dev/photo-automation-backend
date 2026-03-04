@@ -84,10 +84,10 @@ export class SimplyBookController {
   @HttpCode(200)
   async startMigration(@Body() body: { from?: string; to?: string }) {
     try {
-      // Set default range: from today to 60 days ahead
-      const fromDate = body.from || new Date().toISOString().split('T')[0];
+      // Set default range: from start of 2026 to 90 days ahead
+      const fromDate = body.from || '2026-01-01';
       const future = new Date();
-      future.setDate(future.getDate() + 60);
+      future.setDate(future.getDate() + 90);
       const toDate = body.to || future.toISOString().split('T')[0];
 
       console.log(`Starting migration for period: ${fromDate} to ${toDate}`);
